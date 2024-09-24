@@ -1,0 +1,97 @@
+#!/bin/bash
+# Set GAMEDIR to the current directory
+GAMEDIR="$PWD"
+
+echo "GAMEDIR is set to: $GAMEDIR"
+
+# Exports
+export LD_LIBRARY_PATH="/usr/lib:$GAMEDIR/lib:$GAMEDIR/tools/libs:$LD_LIBRARY_PATH"
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+export TOOLDIR="$GAMEDIR/tools"
+export TMPDIR="$GAMEDIR/tmp"
+
+# Permissions
+chmod 666 /dev/uinput
+chmod 777 "$TOOLDIR/gmKtool.py"
+chmod 777 "$TOOLDIR/oggenc"
+
+cd "$GAMEDIR"
+
+process_game() {
+    # Delete unnecessary files
+    rm -rf gamedata/*.exe gamedata/*.dll gamedata/.gitkeep
+    echo "Removed unecessary files"
+    
+    # Copy assets from gamedata folder
+    if [ -d "gamedata" ]; then
+        mv gamedata/* .
+        echo "Moved assets from gamedata to GAMEDIR."
+        sleep 1
+        rm -rf gamedata
+        echo "Removed gamedata directory."
+        sleep 1
+    else
+        echo "gamedata directory not found. Skipping asset copy."
+    fi
+
+    # Check if the data.win file exists and apply xdelta
+    if [ -f "data.win" ]; then
+        echo "Applying xdelta patch"
+        ./tools/xdelta3 -d -s "data.win" -f "./tools/patches/ufo50.xdelta" "game.droid" && rm "data.win"
+    fi
+
+    # Compress audio
+    if [ -f "compress.txt" ]; then
+        echo "Compressing audio. The process will take 5-10 minutes."
+        
+        mkdir -p "$TMPDIR"
+
+        # Run the compression tool
+        echo "Running gmKtool.py with parameters..."
+        PYTHON=$(which python3)
+        $PYTHON ./tools/gmKtool.py -vvv -m 1000 -b 64 -d "$TMPDIR" "$GAMEDIR/game.droid"
+
+        if [ $? -eq 0 ]; then
+            echo "Compression completed successfully."
+            mv "$TMPDIR/"* "$GAMEDIR"
+            echo "Moved compressed files to $GAMEDIR."
+            rm "$GAMEDIR/compress.txt"
+            echo "Removed compress.txt from $GAMEDIR."
+            rmdir "$TMPDIR"
+            echo "Temporary directory $TMPDIR removed."
+            echo "Audio compression applied successfully."
+        else
+            echo "Audio compression failed."
+            echo "Cleaning up temporary directory $TMPDIR."
+            rm -rf "$TMPDIR"
+        fi
+    else
+        echo "compress.txt not found. Skipping audio compression."
+    fi
+
+    sleep 3
+
+    # Check for .dat files and move to APK
+    if [ -n "$(ls ./*.dat 2>/dev/null)" ]; then
+        mkdir -p ./assets
+        mv ./*.dat ./ext ./assets/
+        echo "Moved .dat files to ./assets/"
+
+        zip -r -0 ./game.apk ./assets/
+        echo "Zipped contents to ./game.apk"
+
+        rm -rf ./assets
+        echo "Deleted assets directory"
+    else
+        echo "No .dat files found"
+    fi
+    
+    # Rename data.win
+    mv "data.win" "game.droid"
+	
+    # Final completion message
+    echo "Patching process complete!"
+}
+
+# Call the function
+process_game
