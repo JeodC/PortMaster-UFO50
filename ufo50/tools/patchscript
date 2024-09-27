@@ -37,7 +37,16 @@ process_game() {
     # Check if the data.win file exists and apply xdelta
     if [ -f "data.win" ]; then
         echo "Applying xdelta patch"
-        ./tools/xdelta3 -d -s "data.win" -f "./tools/patches/ufo50.xdelta" "game.droid" && rm "data.win"
+        output=$(./tools/xdelta3 -d -s "data.win" -f "./tools/patches/ufo50.xdelta" "game.droid" 2>&1)
+        if [ $? -eq 0 ]; then
+            echo "Patch applied successfully"
+            echo "$output"
+            rm "data.win"
+        else
+            echo "Failed to apply patch"
+            echo "$output"
+            exit 1
+        fi
     fi
 
     # Compress audio

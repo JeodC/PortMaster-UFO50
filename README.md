@@ -10,4 +10,5 @@ In the game options set scale to 1 for full speed.
 Mossmouth -- The absolutely amazing game  
 JohnnyOnFlame -- GMLoader-Next and TextureRepacker via UTMT  
 Cyril aka kotzebuedog -- GMTools audio patcher  
+mavica -- Gml display patch  
 Testers & Devs from the PortMaster Discord
