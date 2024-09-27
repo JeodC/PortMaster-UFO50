@@ -1,0 +1,15 @@
+name: Other Issue
+description: Report a sepaarte issue not related to performance
+title: "[Other Issue]: "
+labels: ["other-issue"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report an issue unrelated to performance.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Description
+      description: Describe the issue here.
