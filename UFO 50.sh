@@ -37,6 +37,11 @@ export TOOLDIR="$GAMEDIR/tools"
 export TMPDIR="$GAMEDIR/tmp"
 export PATH="$GAMEDIR/tools:$PATH"
 
+# dos2unix in case we need it
+dos2unix "$GAMEDIR/tools/gmKtool.py"
+dos2unix "$GAMEDIR/tools/Klib/GMblob.py"
+dos2unix "$GAMEDIR/tools/patchscript"
+
 # Check if patchlog.txt to skip patching
 if [ ! -f patchlog.txt ]; then
     $GPTOKEYB "love" &
