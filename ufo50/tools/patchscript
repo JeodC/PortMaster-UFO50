@@ -1,14 +1,18 @@
 #!/bin/bash
-# Set GAMEDIR to the current directory
+# Set GAMEDIR to the current directory and set logfile
 GAMEDIR="$PWD"
+LOGFILE="$GAMEDIR/patchlog.txt"
 
+# Redirect output and error to the log file
+exec > >(tee -a "$LOGFILE") 2>&1
 echo "GAMEDIR is set to: $GAMEDIR"
 
 # Exports
-export LD_LIBRARY_PATH="/usr/lib:$GAMEDIR/lib:$GAMEDIR/libs:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/usr/lib:$GAMEDIR/lib:$GAMEDIR/tools/libs:$LD_LIBRARY_PATH"
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export TOOLDIR="$GAMEDIR/tools"
 export TMPDIR="$GAMEDIR/tmp"
+export PATH="$GAMEDIR/tools:$PATH"
 
 # Permissions
 chmod 666 /dev/uinput
@@ -37,7 +41,7 @@ process_game() {
     # Check if the data.win file exists and apply xdelta
     if [ -f "data.win" ]; then
         echo "Applying xdelta patch"
-        output=$(./tools/xdelta3 -d -s "data.win" -f "./tools/patches/ufo50.xdelta" "game.droid" 2>&1)
+        output=$(xdelta3 -d -s "data.win" -f "./tools/patches/ufo50.xdelta" "game.droid" 2>&1)
         if [ $? -eq 0 ]; then
             echo "Patch applied successfully"
             echo "$output"
@@ -50,32 +54,27 @@ process_game() {
     fi
 
     # Compress audio
-    if [ -f "compress.txt" ]; then
-        echo "Compressing audio. The process will take 5-10 minutes."
-        
-        mkdir -p "$TMPDIR"
+    echo "Compressing audio. The process will take 5-10 minutes."  
+    mkdir -p "$TMPDIR"
 
-        # Run the compression tool
-        echo "Running gmKtool.py with parameters..."
-        PYTHON=$(which python3)
-        $PYTHON ./tools/gmKtool.py -vvv -m 1000 -b 64 -d "$TMPDIR" "$GAMEDIR/game.droid"
+    # Run the compression tool
+    echo "Running gmKtool.py with parameters..."
+    PYTHON=$(which python3)
+    $PYTHON ./tools/gmKtool.py -vvv -m 1000 -r -b 64 -d "$TMPDIR" "$GAMEDIR/game.droid"
 
-        if [ $? -eq 0 ]; then
-            echo "Compression completed successfully."
-            mv "$TMPDIR/"* "$GAMEDIR"
-            echo "Moved compressed files to $GAMEDIR."
-            rm "$GAMEDIR/compress.txt"
-            echo "Removed compress.txt from $GAMEDIR."
-            rmdir "$TMPDIR"
-            echo "Temporary directory $TMPDIR removed."
-            echo "Audio compression applied successfully."
-        else
-            echo "Audio compression failed."
-            echo "Cleaning up temporary directory $TMPDIR."
-            rm -rf "$TMPDIR"
-        fi
+    if [ $? -eq 0 ]; then
+        echo "Compression completed successfully."
+        mv "$TMPDIR/"* "$GAMEDIR"
+        echo "Moved compressed files to $GAMEDIR."
+        rm "$GAMEDIR/compress.txt"
+        echo "Removed compress.txt from $GAMEDIR."
+        rmdir "$TMPDIR"
+        echo "Temporary directory $TMPDIR removed."
+        echo "Audio compression applied successfully."
     else
-        echo "compress.txt not found. Skipping audio compression."
+        echo "Audio compression failed."
+        echo "Cleaning up temporary directory $TMPDIR."
+        rm -rf "$TMPDIR"
     fi
 
     sleep 3
@@ -94,9 +93,6 @@ process_game() {
     else
         echo "No .dat files found"
     fi
-    
-    # Rename data.win
-    mv "data.win" "game.droid"
 	
     # Final completion message
     echo "Patching process complete!"

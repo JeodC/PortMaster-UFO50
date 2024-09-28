@@ -32,10 +32,9 @@ $ESUDO chmod +x -R $GAMEDIR/*
 
 # Exports
 export LD_LIBRARY_PATH="/usr/lib:$GAMEDIR/lib:$GAMEDIR/libs:$LD_LIBRARY_PATH"
-export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
-export TOOLDIR="$GAMEDIR/tools"
-export TMPDIR="$GAMEDIR/tmp"
-export PATH="$GAMEDIR/tools:$PATH"
+export PATCHER_FILE="$GAMEDIR/tools/patchscript"
+export PATCHER_GAME="$(basename "${0%.*}")" # This gets the current script filename without the extension
+export PATCHER_TIME="20 to 30 minutes"
 
 # dos2unix in case we need it
 dos2unix "$GAMEDIR/tools/gmKtool.py"
@@ -44,20 +43,18 @@ dos2unix "$GAMEDIR/tools/patchscript"
 
 # Check if patchlog.txt to skip patching
 if [ ! -f patchlog.txt ]; then
-    $GPTOKEYB "love" &
-    ./love patcher -f "tools/patchscript" -g "UFO 50" -t "2 to 5 minutes"
-    $ESUDO kill -9 $(pidof gptokeyb)
+    if [ -f "$controlfolder/utils/patcher.txt" ]; then
+        source "$controlfolder/utils/patcher.txt"
+        $ESUDO kill -9 $(pidof gptokeyb)
+    else
+        echo "This port requires the latest version of PortMaster." > $CUR_TTY
+    fi
 else
     echo "Patching process already completed. Skipping."
 fi
 
-# Gmloader with conditional command
-if [[ "$CFW_NAME" == "TrimUI" ]]; then
-    $GPTOKEYB "gmloadernext" -c "./ufo50.gptk" & 
-else
-    $GPTOKEYB "gmloadernext" & 
-fi
-
+# Run the game
+$GPTOKEYB "gmloadernext" -c "./ufo50.gptk" & 
 ./gmloadernext game.apk
 
 # Kill processes

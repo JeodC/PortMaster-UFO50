@@ -1,5 +1,5 @@
-back = esc
-start = enter
+back = \"
+start = \"
 up = \"
 down = \"
 left = \"

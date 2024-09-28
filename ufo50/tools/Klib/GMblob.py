@@ -3,6 +3,8 @@ from pathlib import Path
 import os
 from subprocess import Popen, PIPE, DEVNULL
 from struct import pack,unpack
+from time import sleep
+import sys
 
 MIN_SIZE = 1024*1024 # 1 MB
 
@@ -18,6 +20,7 @@ class IFFdata:
         self.fileout_size = 0 # includes FORM (4B) and size (4B)
 
         self.verbose = verbose
+        self.buffered = False
         self.chunk_list = None
 
         self.__init_chunk_list()
@@ -25,14 +28,20 @@ class IFFdata:
     def _vprint(self, msg):
         if self.verbose > 0:
             print(msg)
+            if not self.buffered:
+                sys.stdout.flush()
 
     def _vvprint(self, msg):
         if self.verbose > 1:
             print(msg)
+            if not self.buffered:
+                sys.stdout.flush()
 
     def _vvvprint(self, msg):
         if self.verbose > 2:
             print(msg)
+            if not self.buffered:
+                sys.stdout.flush()
 
     def _pretty_size(self,size):
 
@@ -135,6 +144,9 @@ class IFFdata:
 
     def get_chunk_list(self):
         return self.chunk_list
+    
+    def set_buffered(self, buffered):
+        self.buffered = buffered
 
 class GMIFFDdata(IFFdata):
 
@@ -146,6 +158,7 @@ class GMIFFDdata(IFFdata):
         self.audiogroup_id = audiogroup_id
         self.bitrate = bitrate
         self.updated_entries = 0
+        self.no_write = False
 
         self.__init_audo()
     
@@ -207,18 +220,18 @@ class GMIFFDdata(IFFdata):
     def _write_to_file_audo(self):
         self.filein.seek(self.chunk_list["AUDO"]["offset"])
         size = self.chunk_list["AUDO"]["size"]
-        self._vvprint("Writing AUDO")
+        self._vvprint(f"[AGRP {self.audiogroup_id}] Writing AUDO")
 
         audo_offset = self.fileout.tell()
 
         if self.chunk_list["AUDO"]["rebuild"] == 0:
-            self._vvprint("Direct copy AUDO")
+            self._vvprint(f"[AGRP {self.audiogroup_id}] Direct copy AUDO")
 
             self.fileout.write(self.filein.read(size + 8))
             self.fileout_size += size + 8
 
         else:
-            self._vvprint("Rebuild AUDO")
+            self._vvprint(f"[AGRP {self.audiogroup_id}] Rebuild AUDO")
             self.fileout.write(self.filein.read(4)) # Token should be the same
             self.fileout_size += 4
             self.fileout.write(pack('<I', 0xffffffff)) # Unknow size yet
@@ -248,7 +261,7 @@ class GMIFFDdata(IFFdata):
 
 
                 if self.audo[key]["compress"] == 0 and self.audo[key]["source"] == "infile":
-                    self._vvvprint(f"Direct copy AUDO entry {key}")
+                    self._vvvprint(f"[AGRP {self.audiogroup_id}] Direct copy AUDO entry {key}")
                     self.filein.seek(self.audo[key]["offset"])
 
 
@@ -257,8 +270,7 @@ class GMIFFDdata(IFFdata):
                     self.fileout_size += 4 + entrysize
 
                 elif self.audo[key]["compress"] > 0 and self.audo[key]["source"] == "infile":
-                    self._vvvprint(f"Compress AUDO entry {key}")
-                    self.filein.seek(self.audo[key]["offset"])
+                    self._vvprint(f"[AGRP {self.audiogroup_id}] Compress AUDO entry {key}")
 
                     self.fileout.write(pack('<I', 0xffffffff) ) # unknow size yet
                     self.fileout_size += 4
@@ -271,7 +283,7 @@ class GMIFFDdata(IFFdata):
                     self.fileout.seek( entrysize , 1)
 
                 elif self.audo[key]["compress"] > 0 and self.audo[key]["source"] == "txtp":
-                    self._vvvprint(f"Compress TXTP external sound {key}")
+                    self._vvprint(f"[AGRP {self.audiogroup_id}] Compress TXTP external sound {key}")
 
                     self.fileout.write(pack('<I', 0xffffffff) ) # unknow size yet
                     self.fileout_size += 4
@@ -287,11 +299,6 @@ class GMIFFDdata(IFFdata):
             
                 self.fileout.write(b'\x00' * padding )
                 self.fileout_size += padding
-
-            padding = self._get_padding(16)
-            
-            self.fileout.write(b'\x00' * padding )
-            self.fileout_size += padding
 
             audo_size = self.fileout_size - audo_offset - 8
             self.fileout.seek(audo_offset + 4)          # jump to audo size entry
@@ -320,32 +327,56 @@ class GMIFFDdata(IFFdata):
 
     def _write_to_file_audo_ogg(self, audo_entry, compress):
 
+        offset_start = self.fileout.tell()
+        self.fileout.seek(offset_start)                 # Can't find out why, but if I don't do this
+                                                        # it writes with -4 bytes offset...
+
         self.filein.seek(4 + self.audo[audo_entry]["offset"])
 
-        offset_start = self.fileout.tell()
-
         if self.bitrate != 0:
-            oggenc_process = Popen(["oggenc", "-Q", "-b", f"{self.bitrate}", "-o", "-", "-"], stdin=PIPE, stdout=self.fileout, stderr=DEVNULL )
+            oggenc_process = Popen(["oggenc", "-Q", "-b", f"{self.bitrate}", "-o", "-", "-"], stdin=PIPE, stdout=self.fileout, stderr=DEVNULL)
         else:
-            oggenc_process = Popen(["oggenc","-Q","-o", "-", "-"],stdin=PIPE, stdout=self.fileout, stderr=DEVNULL )
+            oggenc_process = Popen(["oggenc","-Q","-o", "-", "-"],stdin=PIPE, stdout=self.fileout, stderr=DEVNULL)
 
         if compress > 1:
             # audio is already compressed, we need to uncompress it before can compress it
-            oggdec_process = Popen(["oggdec", "-Q", "-o", "-", "-"], stdin=PIPE, stdout=oggenc_process.stdin, stderr=DEVNULL )
-            oggdec_process.communicate(self.filein.read(self.audo[audo_entry]["size"]))
+            oggdec_process = Popen(["oggdec", "-Q", "-o", "-", "-"], stdin=PIPE, stdout=PIPE, stderr=DEVNULL)
+            wavdata, _ = oggdec_process.communicate(self.filein.read(self.audo[audo_entry]["size"]))
+            oggenc_process.communicate(wavdata)
+            oggdec_process.terminate()
 
         else:
             oggenc_process.communicate(self.filein.read(self.audo[audo_entry]["size"]))
-        
+
         oggenc_process.terminate()
-        
-        if(compress > 1):
-            oggdec_process.terminate()
-        
+
         return self.fileout.tell() - offset_start
         
     def get_audo(self):
         return self.audo
+    
+    def no_write(self, no_write):
+        if self.audiogroup_id in no_write:
+            self.no_write = True
+            self._vprint(f"[AGRP {self.audiogroup_id}] NO_WRITE")
+        else:
+            self._vprint("[AGRP {self.audiogroup_id}] ONLY_WRITE")
+
+
+        # also no_write audiogroupN.dat files
+        for _,key in enumerate(self.audiogroup_dat.keys()):
+            self.audiogroup_dat[key].no_write(no_write)
+
+    def only_write(self, only_write):
+        if not self.audiogroup_id in only_write:
+            self.no_write = True
+            self._vprint(f"[AGRP {self.audiogroup_id}] NO_WRITE")
+        else:
+            self._vprint(f"[AGRP {self.audiogroup_id}] ONLY_WRITE")
+
+        # also only_write audiogroupN.dat files
+        for _,key in enumerate(self.audiogroup_dat.keys()):
+            self.audiogroup_dat[key].only_write(only_write)
 
     def audo_get_entry(self,n,filein_path):
         with open(filein_path, 'wb') as fout:
@@ -364,27 +395,34 @@ class GMaudiogroup(GMIFFDdata):
         self.chunk_list["AUDO"]["rebuild"] = 1
 
     def write_changes(self, OUT_DIR):
-        self._vprint(f"Writing {self.filein_path.name}")
-        self.fileout_path = OUT_DIR / self.filein_path.name
-        self._open_fileout()
-
-        if self.chunk_list["FORM"]["rebuild"] == 1:
-
-            for _,token in enumerate(self.chunk_list):
-                if token == "AUDO":
-                    self._write_to_file_audo()
-                else:
-                    self._write_to_file_otherchunk(token)
-
-            self.fileout.seek(4)
-            self.fileout.write(pack('<I', self.fileout_size - 8)) # update size
+        if self.no_write:
+            self._vprint(f"No write set for AGRP {self.audiogroup_id}: Will not write {self.filein_path.name}")
         else:
-            self._write_to_file_otherchunk("FORM")
+            self._vprint(f"Writing {self.filein_path.name}")
+            self.fileout_path = OUT_DIR / self.filein_path.name
+            self._open_fileout()
+
+            if self.chunk_list["FORM"]["rebuild"] == 1:
+
+                for _,token in enumerate(self.chunk_list):
+                    if token == "AUDO":
+                        self._write_to_file_audo()
+                    else:
+                        self._write_to_file_otherchunk(token)
+
+                self.fileout.seek(4)
+                self.fileout.write(pack('<I', self.fileout_size - 8)) # update size
+            else:
+                self._write_to_file_otherchunk("FORM")
 
 class GMdata(GMIFFDdata):
 
+    GM_DEFAULT = 0x0000
+    GM_2024_6 = 0x1806
+
     def __init__(self, fin_path, verbose, bitrate, audiogroup_filter=[]):
         super().__init__(fin_path, verbose, bitrate, 0)
+        self.gm_version = GMdata.GM_DEFAULT
 
         self.sond = None
         self.audiogroup_filter = audiogroup_filter
@@ -409,6 +447,14 @@ class GMdata(GMIFFDdata):
         for i in range(nb_entries):
             offset_table.append(unpack('<I',self.filein.read(4))[0])
 
+        if offset_table[1] - offset_table[0] == 40 and len(offset_table) > 1:
+                self.set_gm_version(GMdata.GM_2024_6)
+
+        elif len(offset_table) > 0:
+            self.filein.seek(offset_table[0] + 32)
+            if unpack('<I', self.filein.read(4))[0] > 0:
+                self.set_gm_version(GMdata.GM_2024_6)
+
         self.sond = {}
         
         for i,offset in enumerate(offset_table):
@@ -420,6 +466,11 @@ class GMdata(GMIFFDdata):
             file_offset = unpack('<I',self.filein.read(4))[0]
             [ effect, volume, pitch, audiogroup, audiofile ] = \
                 unpack('<IffII', self.filein.read(20))
+            
+            if self.gm_version == GMdata.GM_2024_6:
+                audiolength = unpack('<f',self.filein.read(4))[0]
+            else:
+                audiolength = 0
             
             name = self.get_str(name_offset)
             type = self.get_str(type_offset)
@@ -443,6 +494,7 @@ class GMdata(GMIFFDdata):
                                     "pitch" : pitch,
                                     "audiogroup" : audiogroup,
                                     "audiofile" : audiofile,
+                                    "audiolength": audiolength,
                                     "rebuild" : 0
                                 }
             self._vvvprint(f"SOND entry {i:#04}: {self.sond[sondkey]}")
@@ -455,16 +507,29 @@ class GMdata(GMIFFDdata):
  
     def __sond_get_raw_entry(self,key):
 
-        return pack('<IIIIIffII',   self.sond[key]["name_offset"], \
-                                    self.sond[key]["flags_raw"], \
-                                    self.sond[key]["type_offset"], \
-                                    self.sond[key]["file_offset"], \
-                                    self.sond[key]["effect"], \
-                                    self.sond[key]["volume"], \
-                                    self.sond[key]["pitch"], \
-                                    self.sond[key]["audiogroup"], \
-                                    self.sond[key]["audiofile"]
-                    )
+        if self.gm_version == GMdata.GM_2024_6:
+            return pack('<IIIIIffIIf',   self.sond[key]["name_offset"], \
+                                self.sond[key]["flags_raw"], \
+                                self.sond[key]["type_offset"], \
+                                self.sond[key]["file_offset"], \
+                                self.sond[key]["effect"], \
+                                self.sond[key]["volume"], \
+                                self.sond[key]["pitch"], \
+                                self.sond[key]["audiogroup"], \
+                                self.sond[key]["audiofile"], \
+                                self.sond[key]["audiolength"]
+                        )
+        else:
+            return pack('<IIIIIffII',   self.sond[key]["name_offset"], \
+                                        self.sond[key]["flags_raw"], \
+                                        self.sond[key]["type_offset"], \
+                                        self.sond[key]["file_offset"], \
+                                        self.sond[key]["effect"], \
+                                        self.sond[key]["volume"], \
+                                        self.sond[key]["pitch"], \
+                                        self.sond[key]["audiogroup"], \
+                                        self.sond[key]["audiofile"]
+                        )
     
     def __sond_update_flags_raw(self, key):
         self.sond[key]["flags_raw"] =   self.sond[key]["flags"]["isRegular"] * 0x64 | \
@@ -500,19 +565,24 @@ class GMdata(GMIFFDdata):
             self.fileout_size += 12
             self.fileout.write(self.filein.read(len(self.sond.keys()) * 4)) # offsets don't change
             self.fileout_size += len(self.sond.keys()) * 4
+            
+            if self.gm_version == GMdata.GM_2024_6:
+                sond_entry_size = 40
+            else:
+                sond_entry_size = 36
 
             for n, key in enumerate(self.sond.keys()):
                 if self.sond[key]["rebuild"] == 0:
                     self._vvvprint(f"Direct copy SOND entry {key}")
                     # We copy the entry from the input file
-                    self.fileout.write(self.filein.read(36)) # same entry (36B)
-                    
+                    self.fileout.write(self.filein.read(sond_entry_size)) # same entry (36 / 40B)
                 else:
                     self._vvvprint(f"Rebuild SOND entry {key}")
-                    self.filein.seek(36,1) # we jump this chunk on the input file (36B)
+                    self.filein.seek(sond_entry_size,1) # we jump this chunk on the input file (36 / 40B)
+
                     self.fileout.write(self.__sond_get_raw_entry(key))
 
-                self.fileout_size += 36
+                self.fileout_size += sond_entry_size
 
             padding = self._get_padding(16)
             
@@ -522,6 +592,9 @@ class GMdata(GMIFFDdata):
     def get_sond(self):
         return self.sond
 
+    def set_gm_version(self, version):
+        self.gm_version = version
+    
     def audio_enable_compress(self ,minsize, recompress=False):
 
         # Iter each entry in SOND
@@ -553,25 +626,28 @@ class GMdata(GMIFFDdata):
             self._vprint(f"{self.get_total_updated_entries()} audo entrie(s) will be compressed")
 
     def write_changes(self, OUT_DIR):
-        self._vprint(f"Writing {self.filein_path.name}")
-
-        self.fileout_path = OUT_DIR / self.filein_path.name
-        self._open_fileout()
-
-        if self.chunk_list["FORM"]["rebuild"] == 1:
-
-            for _,token in enumerate(self.chunk_list):
-                if token == "SOND":
-                    self.__write_to_file_sond()
-                elif token == "AUDO":
-                    self._write_to_file_audo()
-                else:
-                    self._write_to_file_otherchunk(token)
-
-            self.fileout.seek(4)
-            self.fileout.write(pack('<I', self.fileout_size - 8)) # update size
+        if self.no_write:
+            self._vprint(f"No write set for AGRP {self.audiogroup_id}: Will not write {self.filein_path.name}")
         else:
-            self._write_to_file_otherchunk("FORM")
+            self._vprint(f"Writing {self.filein_path.name}")
+
+            self.fileout_path = OUT_DIR / self.filein_path.name
+            self._open_fileout()
+
+            if self.chunk_list["FORM"]["rebuild"] == 1:
+
+                for _,token in enumerate(self.chunk_list):
+                    if token == "SOND":
+                        self.__write_to_file_sond()
+                    elif token == "AUDO":
+                        self._write_to_file_audo()
+                    else:
+                        self._write_to_file_otherchunk(token)
+
+                self.fileout.seek(4)
+                self.fileout.write(pack('<I', self.fileout_size - 8)) # update size
+            else:
+                self._write_to_file_otherchunk("FORM")
         
         # also write audiogroupN.dat files
         for _,key in enumerate(self.audiogroup_dat.keys()):
