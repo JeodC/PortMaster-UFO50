@@ -446,11 +446,11 @@ class GMdata(GMIFFDdata):
         offset_table = []
         for i in range(nb_entries):
             offset_table.append(unpack('<I',self.filein.read(4))[0])
-
+        
         if offset_table[1] - offset_table[0] == 40 and len(offset_table) > 1:
                 self.set_gm_version(GMdata.GM_2024_6)
 
-        elif len(offset_table) > 0:
+        elif len(offset_table) == 1:
             self.filein.seek(offset_table[0] + 32)
             if unpack('<I', self.filein.read(4))[0] > 0:
                 self.set_gm_version(GMdata.GM_2024_6)
@@ -594,6 +594,8 @@ class GMdata(GMIFFDdata):
 
     def set_gm_version(self, version):
         self.gm_version = version
+        if self.gm_version == GMdata.GM_2024_6:
+            self._vprint("GM 2024.6 detected")
     
     def audio_enable_compress(self ,minsize, recompress=False):
 
