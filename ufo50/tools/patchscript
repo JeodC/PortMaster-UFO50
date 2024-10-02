@@ -54,11 +54,11 @@ process_game() {
     fi
 
     # Compress audio
-    echo "Compressing audio. The process will take 5-10 minutes."  
+    echo "Compressing audio..."
+    sleep 3
     mkdir -p "$TMPDIR"
 
     # Run the compression tool
-    echo "Running gmKtool.py with parameters..."
     PYTHON=$(which python3)
     $PYTHON ./tools/gmKtool.py -vvv -m 1000 -r -b 64 -d "$TMPDIR" "$GAMEDIR/game.droid"
 
@@ -66,8 +66,6 @@ process_game() {
         echo "Compression completed successfully."
         mv "$TMPDIR/"* "$GAMEDIR"
         echo "Moved compressed files to $GAMEDIR."
-        rm "$GAMEDIR/compress.txt"
-        echo "Removed compress.txt from $GAMEDIR."
         rmdir "$TMPDIR"
         echo "Temporary directory $TMPDIR removed."
         echo "Audio compression applied successfully."
