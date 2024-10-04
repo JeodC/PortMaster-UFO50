@@ -1,7 +1,5 @@
 ## Installation
-Purchase the game on Steam and using the steam console or depot downloader, do `download_depot 1147860 1147861 6512411704625720880`.
-
-Copy all the data to `ports/ufo50/gamedata`. On first run the game will be patched.
+Purchase the game on Steam and copy all the data to `ports/ufo50/gamedata`. On first run the game will be patched.
 
 ## Performance Notes
 This port features audio compression and texture repacking in an attempt to reduce memory usage. This is necessary in order for the port to run on the linux arm handhelds targeted. These handhelds are equipped with low-end rockchip or allwinner processors
