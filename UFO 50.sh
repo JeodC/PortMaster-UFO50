@@ -53,6 +53,12 @@ else
     echo "Patching process already completed. Skipping."
 fi
 
+# Display loading splash
+if [ -f "$GAMEDIR/patchlog.txt" ]; then
+    $ESUDO ./libs/splash "splash.png" 1 
+    $ESUDO ./libs/splash "splash.png" 2000
+fi
+
 # Run the game
 $GPTOKEYB "gmloadernext" -c "./ufo50.gptk" & 
 ./gmloadernext game.apk
