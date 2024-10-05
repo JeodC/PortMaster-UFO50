@@ -22,9 +22,7 @@
     "rtr": false,
     "exp": false,
     "runtime": null,
-    "reqs": [
-      "2gb"
-    ],
+    "reqs": [],
     "arch": [
       "aarch64"
     ]

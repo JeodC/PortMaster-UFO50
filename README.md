@@ -6,8 +6,6 @@ This port features audio compression and texture repacking in an attempt to redu
 and usually 1-2GB of memory, alongside Mali blob drivers. Low processing power, low memory, and low VRAM are all major things to watch for when running ports on these devices. The following are known issues that are, again, **conditionally existent due to hardware and gmloader-next constraints**.
 
 - Games that use large rooms will have lower fps (Ninpek, Velgress, Planet Zoldath, etc).
-- Porgy is currently crashing. We know why it happens, and we're looking into a solution.
-- This port is marked for **2GB** devices and PortMaster GUI will filter it if your device doesn't meet the requirement. You can install the port manually but YMMV.
 
 ## Thanks
 Mossmouth -- The absolutely amazing game  
