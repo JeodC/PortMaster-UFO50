@@ -13,13 +13,10 @@ else
 fi
 
 source $controlfolder/control.txt
-source $controlfolder/device_info.txt
 [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
 get_controls
 
 # Setup permissions
-$ESUDO chmod 666 /dev/tty1
-$ESUDO chmod 666 /dev/uinput
 echo "Loading, please wait... (might take a while!)" > $CUR_TTY
 
 # Variables
@@ -60,10 +57,9 @@ if [ -f "$GAMEDIR/patchlog.txt" ]; then
 fi
 
 # Run the game
-$GPTOKEYB "gmloadernext" -c "./ufo50.gptk" & 
+$GPTOKEYB "gmloadernext" -c "./ufo50.gptk" &
+pm_platform_helper "$GAMEDIR/gmloadernext"
 ./gmloadernext game.apk
 
 # Kill processes
-$ESUDO kill -9 $(pidof gptokeyb)
-$ESUDO systemctl restart oga_events &
-printf "\033c" > /dev/tty0
+pm_finish
