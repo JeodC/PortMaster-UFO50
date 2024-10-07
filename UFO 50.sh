@@ -16,9 +16,6 @@ source $controlfolder/control.txt
 [ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
 get_controls
 
-# Setup permissions
-echo "Loading, please wait... (might take a while!)" > $CUR_TTY
-
 # Variables
 GAMEDIR="/$directory/ports/ufo50"
 
