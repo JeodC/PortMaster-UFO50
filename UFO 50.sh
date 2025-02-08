@@ -41,10 +41,10 @@ if [ ! -f patchlog.txt ]; then
         source "$controlfolder/utils/patcher.txt"
         $ESUDO kill -9 $(pidof gptokeyb)
     else
-        echo "This port requires the latest version of PortMaster." > $CUR_TTY
+        pm_message "This port requires the latest version of PortMaster."
     fi
 else
-    echo "Patching process already completed. Skipping."
+    pm_message "Patching process already completed. Skipping."
 fi
 
 # Display loading splash
@@ -55,7 +55,7 @@ fi
 
 # Assign gptokeyb and load the game
 $GPTOKEYB "gmloadernext.aarch64" -c "ufo50.gptk" &
-pm_platform_helper "$GAMEDIR/gmloadernext.aarch64"
+pm_platform_helper "$GAMEDIR/gmloadernext.aarch64" >/dev/null
 ./gmloadernext.aarch64 -c gmloader.json
 
 # Kill processes
