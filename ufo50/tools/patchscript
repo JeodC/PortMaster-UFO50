@@ -94,7 +94,7 @@ zip_archive() {
 
 process_game() {
     # Delete unnecessary files
-    rm -rf $DATADIR/*.exe $DATADIR/*.dll $DATADIR/.gitkeep $DATADIR/gamedat
+    rm -rf $DATADIR/*.exe $DATADIR/*.dll $DATADIR/.gitkeep
     echo "Removed unnecessary files"
     
     # Check if we're using a prepatched game
