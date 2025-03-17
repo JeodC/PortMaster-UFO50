@@ -19,21 +19,15 @@ get_controls
 # Variables
 GAMEDIR="/$directory/ports/ufo50"
 
-# CD and set permissions
+# CD and set log
 cd $GAMEDIR
 > "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
-$ESUDO chmod +x -R $GAMEDIR/*
 
 # Exports
 export LD_LIBRARY_PATH="/usr/lib:$GAMEDIR/lib:$GAMEDIR/libs:$LD_LIBRARY_PATH"
 export PATCHER_FILE="$GAMEDIR/tools/patchscript"
 export PATCHER_GAME="$(basename "${0%.*}")" # This gets the current script filename without the extension
 export PATCHER_TIME="20 to 30 minutes"
-
-# dos2unix in case we need it
-dos2unix "$GAMEDIR/tools/gmKtool.py"
-dos2unix "$GAMEDIR/tools/Klib/GMblob.py"
-dos2unix "$GAMEDIR/tools/patchscript"
 
 # Check if patchlog.txt to skip patching
 if [ ! -f patchlog.txt ]; then
@@ -43,8 +37,6 @@ if [ ! -f patchlog.txt ]; then
     else
         pm_message "This port requires the latest version of PortMaster."
     fi
-else
-    pm_message "Patching process already completed. Skipping."
 fi
 
 # Display loading splash
